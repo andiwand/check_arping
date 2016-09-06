@@ -34,6 +34,7 @@ def nping(host, proto='icmp', count=5, dest_mac=None):
 	nping = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	exit_code = os.waitpid(nping.pid, 0)
 	output = nping.communicate()
+	result = None
 	
 	if exit_code != 0 and not output[1]:
 		data = '\n'.join(output[0].strip().split('\n')[-3:-1])
