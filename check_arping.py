@@ -9,7 +9,7 @@ import re
 
 prefix = {0: 'OK', 1: 'WARN', 2: 'CRIT', 3: 'UNKN'}
 
-regex_output = r'\s*(.*?)\:\s*(\d+(?:\.\d*)?)(\w*)\s*?.*?(?:$|\|)'
+regex_output = r'(\d+(:?\.\d+)?)'
 regex_limit = r'^(\d+),(\d+)%$'
 
 def parse_limits(s):
@@ -24,22 +24,24 @@ def optionsparser(argv=None):
 	parser.add_argument('--dest-mac', help='destination mac', type=str)
 	return parser.parse_args(argv)
 
-def nping(host, proto='icmp', count=5, dest_mac=None):
-	args = ['nping']
-	args += ['--' + proto]
+def arping(host, dest_mac, count=5):
+	args = ['arping']
 	args += ['-c', str(count)]
-	if dest_mac: args += ['--dest-mac', dest_mac]
-	args += [host]
+	args += ['-T', host]
+	args += [dest_mac]
 	
-	nping = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	exit_code = os.waitpid(nping.pid, 0)
-	output = nping.communicate()
+	process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	exit_code = os.waitpid(process.pid, 0)
+	output = process.communicate()
 	result = None
 	
 	if exit_code != 0 and not output[1]:
-		data = '\n'.join(output[0].strip().split('\n')[-3:-1])
-		data_parsed = re.findall(regex_output, data, flags=re.M)
-		result = tuple(map(float, (l[1] for l in data_parsed)))
+		data = output[0].strip().split('\n')[-3:-1]
+		packet_data = re.findall(regex_output, data[0])
+		time_data = re.findall(regex_output, data[1])
+		result = {"tx": int(packet_data[0]), "rx": int(packet_data[1]), "pl": float(packet_data[2]) / 100,
+				"rta_min": float(time_data[0]), "rta_avg": float(time_data[1]), "rta_max": float(time_data[2]),
+				"rta_std": float(time_data[3])}
 	
 	return (result, output[0], output[1])
 
@@ -48,9 +50,9 @@ def main(argv=None):
 	w_rta, w_pl = parse_limits(args.warning)
 	c_rta, c_pl = parse_limits(args.critical)
 	try:
-		result = nping(args.host, 'icmp', args.packets, args.dest_mac)
+		result = arping(args.host, args.dest_mac, args.packets)
 	except OSError:
-		sys.stdout.write('UKNOWN: nping invocation failed!')
+		sys.stdout.write('UKNOWN: arping invocation failed!')
 		return 3
 	if result[2]:
 		sys.stdout.write('UKNOWN: ' + result[2])
@@ -58,8 +60,8 @@ def main(argv=None):
 	if result[0] == None:
 		sys.stdout.write('UKNOWN: parsing failed: ' + result[1])
 		return 3
-	rta = result[0][2]
-	pl = result[0][5] / result[0][3]
+	rta = result["rta_avg"]
+	pl = result["pl"]
 	return_code = 0
 	if rta >= w_rta or pl >= w_pl:
 		return_code = 1
@@ -71,4 +73,3 @@ def main(argv=None):
 if __name__ == '__main__':
 	exit_code = main()
 	sys.exit(exit_code)
-
