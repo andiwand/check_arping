@@ -18,19 +18,19 @@ def parse_limits(s):
 
 def optionsparser(argv=None):
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-H', '--host', help='host to ping', type=str, required=True)
-	parser.add_argument('-w', '--warning', help='warning threshold pair', type=str, required=True)
-	parser.add_argument('-c', '--critical', help='critical threshold pair', type=str, required=True)
+	parser.add_argument('-H', '--host', help='host to ping', required=True)
+	parser.add_argument('-w', '--warning', help='warning threshold pair', required=True)
+	parser.add_argument('-c', '--critical', help='critical threshold pair', required=True)
 	parser.add_argument('-p', '--packets', help='number of ICMP ECHO packets to send (default is %(default)d)', type=int, default=5)
-	parser.add_argument('--dest-mac', help='destination mac', type=str, required=True)
-	parser.add_argument('-I', '--interface', help="interface to use", type=str, required=True)
+	parser.add_argument('--dest-mac', help='destination mac', required=True)
+	parser.add_argument('-I', '--interface', help="interface to use")
 	return parser.parse_args(argv)
 
-def arping(host, dest_mac, interface, count=5):
+def arping(host, dest_mac, interface=None, count=5):
 	args = ['arping']
 	args += ['-c', str(count)]
 	args += ['-T', host]
-	args += ['-I', interface]
+	if interface is not None: args += ['-I', interface]
 	args += [dest_mac]
 	
 	process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -61,9 +61,6 @@ def main(argv=None):
 		result = arping(args.host, args.dest_mac, args.interface, args.packets)
 	except OSError:
 		sys.stdout.write('UKNOWN: arping invocation failed!')
-		return 3
-	if result[2]:
-		sys.stdout.write('UKNOWN: ' + result[2])
 		return 3
 	if result[0] == None:
 		sys.stdout.write('UKNOWN: parsing failed: ' + result[1])
